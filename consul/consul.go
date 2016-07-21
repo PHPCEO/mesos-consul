@@ -51,7 +51,7 @@ func (c *Consul) newAgent(address string) *consulapi.Client {
 
 	config := consulapi.DefaultConfig()
 
-	config.Address = fmt.Sprintf("%s:%s", address, c.config.port)
+	config.Address = fmt.Sprintf("%s:%s", c.config.ip, c.config.port)
 	log.Debugf("consul address: %s", config.Address)
 
 	if c.config.token != "" {
@@ -132,7 +132,7 @@ func (c *Consul) Register(service *registry.Service) {
 // Deregister()
 //   Deregister services that no longer exist
 //
-func (c *Consul) Deregister() {
+func (c *Consul) Deregister() error {
 	for s, b := range serviceCache {
 		if c.CacheIsValid(s) {
 			c.CacheProcessDeregister(s)
@@ -140,12 +140,13 @@ func (c *Consul) Deregister() {
 			log.Infof("Deregistering %s", s)
 			err := c.deregister(b.agent, b.service)
 			if err != nil {
-				log.Info("Deregistration error ", err)
-			} else {
-				delete(serviceCache, s)
+				return err
 			}
+			delete(serviceCache, s)
 		}
 	}
+
+	return nil
 }
 
 func (c *Consul) deregister(agent string, service *consulapi.AgentServiceRegistration) error {

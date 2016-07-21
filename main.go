@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
+	"net/http"
 
 	"github.com/CiscoCloud/mesos-consul/config"
 	"github.com/CiscoCloud/mesos-consul/consul"
@@ -16,7 +16,7 @@ import (
 )
 
 const Name = "mesos-consul"
-const Version = "0.4.0"
+const Version = "0.3.1"
 
 func main() {
 	c, err := parseFlags(os.Args[1:])
@@ -44,7 +44,7 @@ func StartHealthcheckService(c *config.Config) {
 }
 
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "OK")
+  fmt.Fprintln(w, "OK")
 }
 
 func parseFlags(args []string) (*config.Config, error) {
@@ -62,31 +62,14 @@ func parseFlags(args []string) (*config.Config, error) {
 	flags.StringVar(&c.LogLevel, "log-level", "WARN", "")
 	flags.DurationVar(&c.Refresh, "refresh", time.Minute, "")
 	flags.StringVar(&c.Zk, "zk", "zk://127.0.0.1:2181/mesos", "")
-	flags.StringVar(&c.Separator, "group-separator", "", "")
 	flags.StringVar(&c.MesosIpOrder, "mesos-ip-order", "netinfo,mesos,host", "")
 	flags.BoolVar(&c.Healthcheck, "healthcheck", false, "")
 	flags.StringVar(&c.HealthcheckIp, "healthcheck-ip", "127.0.0.1", "")
 	flags.StringVar(&c.HealthcheckPort, "healthcheck-port", "24476", "")
 	flags.Var((funcVar)(func(s string) error {
-		c.TaskWhiteList = append(c.TaskWhiteList, s)
+		c.WhiteList = append(c.WhiteList, s)
 		return nil
 	}), "whitelist", "")
-	flags.Var((funcVar)(func(s string) error {
-		c.TaskBlackList = append(c.TaskBlackList, s)
-		return nil
-	}), "blacklist", "")
-	flags.Var((funcVar)(func(s string) error {
-		c.FwWhiteList = append(c.FwWhiteList, s)
-		return nil
-	}), "fw-whitelist", "")
-	flags.Var((funcVar)(func(s string) error {
-		c.FwBlackList = append(c.FwBlackList, s)
-		return nil
-	}), "fw-blacklist", "")
-	flags.Var((funcVar)(func(s string) error {
-		c.TaskTag = append(c.TaskTag, s)
-		return nil
-	}), "task-tag", "")
 	flags.StringVar(&c.ServiceName, "service-name", "mesos", "")
 	flags.StringVar(&c.ServiceTags, "service-tags", "", "")
 
@@ -132,7 +115,6 @@ Options:
 				(default "WARN")
   --refresh=<time>		Set the Mesos refresh rate (default 1m)
   --zk=<address>		Zookeeper path to Mesos (default zk://127.0.0.1:2181/mesos)
-  --group-separator=<separator> Choose the group separator. Will replace _ in task names (default is empty)
   --healthcheck 		Enables a http endpoint for health checks. When this
 				flag is enabled, serves a service health status on 127.0.0.1:24476 (default not enabled)
   --healthcheck-ip=<ip> 	Health check interface ip (default 127.0.0.1)
@@ -144,16 +126,6 @@ Options:
   --heartbeats-before-remove	Number of times that registration needs to fail before removing
 				task from Consul. (default: 1)
   --whitelist=<regex>		Only register services matching the provided regex. 
-				Can be specified multiple times
-  --blacklist=<regex>		Do not register services matching the provided regex. 
-				Can be specified multiple times
-  --fw-whitelist=<regex>	Only register services from frameworks matching the provided
-				regex.
-				Can be specified multiple times
-  --fw-blacklist=<regex>	Do not register services from frameworks matching the provided
-				regex.
-				Can be specified multiple times
-  --task-tag=<pattern:tag>	Tag tasks whose name contains 'pattern' substring (case-insensitive) with given tag.
 				Can be specified multiple times
   --service-name=<name>		Service name of the Mesos hosts. (default: mesos)
   --service-tags=<tag>,...	Comma delimited list of tags to add to the mesos hosts
@@ -167,5 +139,5 @@ Options:
 type funcVar func(s string) error
 
 func (f funcVar) Set(s string) error { return f(s) }
-func (f funcVar) String() string     { return "" }
-func (f funcVar) IsBoolFlag() bool   { return false }
+func (f funcVar) String() string { return "" }
+func (f funcVar) IsBoolFlag() bool {return false }

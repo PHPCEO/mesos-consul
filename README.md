@@ -1,7 +1,5 @@
 # mesos-consul
 
-[![Build Status](https://travis-ci.org/CiscoCloud/mesos-consul.svg)](https://travis-ci.org/CiscoCloud/mesos-consul)
-
 Mesos to Consul bridge for service discovery.
 
 Mesos-consul automatically registers/deregisters services run as Mesos tasks.
@@ -103,12 +101,9 @@ You can add options to authenticate via basic http or Consul token.
 | `consul-token`      | The registry ACL token
 | `heartbeats-before-remove` | Number of times that registration needs to fail before removing task from Consul. (default: 1)
 | `whitelist`         | Only register services matching the provided regex. Can be specified multitple time
-| `blacklist`         | Does not register services matching the provided regex. Can be specified multitple time
 | `service-name=<name>`      | Service name of the Mesos hosts
 | `service-tags=<tag>,...` | Comma delimited list of tags to register the Mesos hosts. Mesos hosts will be registered as (leader|master|follower).<tag>.<service>.service.consul
-| `task-tag=<pattern:tag>` | Tag tasks matching pattern with given tag. Can be specified multitple times
-| `zk`\*                 | Location of the Mesos path in Zookeeper. The default value is zk://127.0.0.1:2181/mesos
-| `group-separator`      | Choose the group separator. Will replace _ in task names (default is empty)
+| `zk`*                 | Location of the Mesos path in Zookeeper. The default value is zk://127.0.0.1:2181/mesos
 
 
 ### Consul Registration
@@ -161,10 +156,6 @@ This will result in a service `tagging-test` being created in consul with 3 sepa
   }
 ]
 ```
-#### Override Task Name
-
-By adding a label `overrideTaskName` with an arbitrary value, the value is used as the service name during consul registration.
-Tags are preserved.
 
 ## Todo
 

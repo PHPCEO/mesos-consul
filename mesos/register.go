@@ -30,6 +30,7 @@ func (m *Mesos) RegisterHosts(s state.State) {
 
 	m.Agents = make(map[string]string)
 
+
 	// Register slaves
 	for _, f := range s.Slaves {
 		agent := toIP(f.PID.Host)
@@ -78,6 +79,22 @@ func (m *Mesos) RegisterHosts(s state.State) {
 	}
 }
 
+// helper function to compare service tag slices
+//
+func sliceEq(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (m *Mesos) registerHost(s *registry.Service) {
 	h := m.Registry.CacheLookup(s.ID)
 	if h != nil {
@@ -102,17 +119,13 @@ func (m *Mesos) registerHost(s *registry.Service) {
 func (m *Mesos) registerTask(t *state.Task, agent string) {
 	var tags []string
 
-	registered := false
-
-	tname := cleanName(t.Name, m.Separator)
-        log.Debugf("original TaskName : (%v)", tname)
-	if t.Label("overrideTaskName") != "" {
-		tname = cleanName(t.Label("overrideTaskName"), m.Separator)
-		log.Debugf("overrideTaskName to : (%v)", tname)
-	}
-	if !m.TaskPrivilege.Allowed(tname) {
-		// Task not allowed to be registered
-		return
+	tname := cleanName(t.Name)
+	if m.whitelistRegex != nil {
+		if !m.whitelistRegex.MatchString(tname) {
+			log.WithField("task", tname).Debug("Task not on whitelist")
+			// No match
+			return
+		}
 	}
 
 	address := t.IP(m.IpOrder...)
@@ -124,10 +137,7 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 		tags = []string{}
 	}
 
-	tags = buildRegisterTaskTags(tname, tags, m.taskTag)
-
 	for key := range t.DiscoveryInfo.Ports.DiscoveryPorts {
-		var porttags []string
 		discoveryPort := state.DiscoveryPort(t.DiscoveryInfo.Ports.DiscoveryPorts[key])
 		serviceName := discoveryPort.Name
 		servicePort := strconv.Itoa(discoveryPort.Number)
@@ -135,33 +145,26 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 			t.Name,
 			discoveryPort.Name,
 			discoveryPort.Number)
-		pl := discoveryPort.Label("tags")
-		if pl != "" {
-			porttags = strings.Split(discoveryPort.Label("tags"), ",")
-		} else {
-			porttags = []string{}
-		}
 		if discoveryPort.Name != "" {
 			m.Registry.Register(&registry.Service{
-				ID:      fmt.Sprintf("mesos-consul:%s:%s:%s:%d", agent, tname, address, discoveryPort.Number),
+				ID:      fmt.Sprintf("mesos-consul:%s:%s:%d", agent, tname, discoveryPort.Number),
 				Name:    tname,
 				Port:    toPort(servicePort),
 				Address: address,
-				Tags:    append(append(tags, serviceName), porttags...),
+				Tags:    []string{serviceName},
 				Check: GetCheck(t, &CheckVar{
 					Host: toIP(address),
 					Port: servicePort,
 				}),
 				Agent: toIP(agent),
 			})
-			registered = true
 		}
 	}
 
 	if t.Resources.PortRanges != "" {
 		for _, port := range t.Resources.Ports() {
 			m.Registry.Register(&registry.Service{
-				ID:      fmt.Sprintf("mesos-consul:%s:%s:%s:%s", agent, tname, address, port),
+				ID:      fmt.Sprintf("mesos-consul:%s:%s:%s", agent, tname, port),
 				Name:    tname,
 				Port:    toPort(port),
 				Address: address,
@@ -172,13 +175,10 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 				}),
 				Agent: toIP(agent),
 			})
-			registered = true
 		}
-	} 
-
-	if !registered {
+	} else {
 		m.Registry.Register(&registry.Service{
-			ID:      fmt.Sprintf("mesos-consul:%s-%s:address", agent, tname, address),
+			ID:      fmt.Sprintf("mesos-consul:%s-%s", agent, tname),
 			Name:    tname,
 			Address: address,
 			Tags:    tags,
@@ -188,26 +188,6 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 			Agent: toIP(agent),
 		})
 	}
-}
-
-// buildRegisterTaskTags takes a cleaned task name, a slice of starting tags, and the processed
-// taskTag map and returns a slice of tags that should be applied to this task.
-func buildRegisterTaskTags(taskName string, startingTags []string, taskTag map[string][]string) []string {
-	result := startingTags
-	tnameLower := strings.ToLower(taskName)
-
-	for pattern, taskTags := range taskTag {
-		for _, tag := range taskTags {
-			if strings.Contains(tnameLower, pattern) {
-				if !sliceContainsString(result, tag) {
-					log.WithField("task-tag", tnameLower).Debug("Task matches pattern for tag")
-					result = append(result, tag)
-				}
-			}
-		}
-	}
-
-	return result
 }
 
 func (m *Mesos) agentTags(ts ...string) []string {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -33,14 +34,9 @@ type Mesos struct {
 	started   sync.Once
 	startChan chan struct{}
 
-	IpOrder        []string
-	taskTag        map[string][]string
-
-	// Whitelist/Blacklist privileges
-	TaskPrivilege *Privilege
-	FwPrivilege *Privilege
-
-	Separator string
+	IpOrder []string
+	WhiteList string
+	whitelistRegex *regexp.Regexp
 
 	ServiceName string
 	ServiceTags []string
@@ -52,18 +48,23 @@ func New(c *config.Config) *Mesos {
 	if c.Zk == "" {
 		return nil
 	}
-	m.Separator = c.Separator
 
-	m.TaskPrivilege = NewPrivilege(c.TaskWhiteList, c.TaskBlackList)
-	m.FwPrivilege = NewPrivilege(c.FwWhiteList, c.FwBlackList)
-
-	var err error
-	m.taskTag, err = buildTaskTag(c.TaskTag)
-	if err != nil {
-		log.WithField("task-tag", c.TaskTag).Fatal(err.Error())
+	if len(c.WhiteList) > 0 {
+		m.WhiteList = strings.Join(c.WhiteList, "|")
+		log.WithField("whitelist", m.WhiteList).Debug("Using whitelist regex")
+		re, err := regexp.Compile(m.WhiteList)
+		if err != nil {
+			// For now, exit if the regex fails to compile. If we read regexes from Consul
+			// maybe we emit a warning and use the old regex
+			//
+			log.WithField("whitelist", m.WhiteList).Fatal("WhiteList regex failed to compile")
+		}
+		m.whitelistRegex = re
+	} else {
+		m.whitelistRegex = nil
 	}
 
-	m.ServiceName = cleanName(c.ServiceName, c.Separator)
+	m.ServiceName = cleanName(c.ServiceName)
 
 	m.Registry = consul.New()
 
@@ -88,31 +89,6 @@ func New(c *config.Config) *Mesos {
 	}
 
 	return m
-}
-
-// buildTaskTag takes a slice of task-tag arguments from the command line
-// and returns a map of tasks name patterns to slice of tags that should be applied.
-func buildTaskTag(taskTag []string) (map[string][]string, error) {
-	result := make(map[string][]string)
-
-	for _, tt := range taskTag {
-		parts := strings.Split(tt, ":")
-		if len(parts) != 2 {
-			return nil, errors.New("task-tag pattern invalid, must include 1 colon separator")
-		}
-
-		taskName := strings.ToLower(parts[0])
-		log.WithField("task-tag", taskName).Debug("Using task-tag pattern")
-		tags := strings.Split(parts[1], ",")
-
-		if _, ok := result[taskName]; !ok {
-			result[taskName] = tags
-		} else {
-			result[taskName] = append(result[taskName], tags...)
-		}
-	}
-
-	return result, nil
 }
 
 func (m *Mesos) Refresh() error {
@@ -156,17 +132,17 @@ func (m *Mesos) loadState() (state.State, error) {
 	log.Infof("Zookeeper leader: %s:%s", mh.Ip, mh.PortString)
 
 	log.Info("reloading from master ", mh.Ip)
-	sj, err = m.loadFromMaster(mh.Ip, mh.PortString)
+	sj = m.loadFromMaster(mh.Ip, mh.PortString)
 
 	if rip := leaderIP(sj.Leader); rip != mh.Ip {
 		log.Warn("master changed to ", rip)
-		sj, err = m.loadFromMaster(rip, mh.PortString)
+		sj = m.loadFromMaster(rip, mh.PortString)
 	}
 
 	return sj, err
 }
 
-func (m *Mesos) loadFromMaster(ip string, port string) (sj state.State, err error) {
+func (m *Mesos) loadFromMaster(ip string, port string) (sj state.State) {
 	url := "http://" + ip + ":" + port + "/master/state.json"
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -175,21 +151,21 @@ func (m *Mesos) loadFromMaster(ip string, port string) (sj state.State, err erro
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
 
 	err = json.Unmarshal(body, &sj)
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
 
-	return sj, nil
+	return sj
 }
 
 func (m *Mesos) parseState(sj state.State) {
@@ -199,9 +175,6 @@ func (m *Mesos) parseState(sj state.State) {
 	log.Debug("Done running RegisterHosts")
 
 	for _, fw := range sj.Frameworks {
-		if !m.FwPrivilege.Allowed(fw.Name) {
-			continue
-		}
 		for _, task := range fw.Tasks {
 			agent, ok := m.Agents[task.SlaveID]
 			if ok && task.State == "TASK_RUNNING" {
@@ -211,5 +184,9 @@ func (m *Mesos) parseState(sj state.State) {
 		}
 	}
 
-	m.Registry.Deregister()
+	// Remove completed tasks
+    err := m.Registry.Deregister()
+    if err != nil {
+        log.Error(err)
+    }
 }
