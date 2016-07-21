@@ -152,11 +152,7 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 			discoveryPort.Number)
 		if discoveryPort.Name != "" {
 			m.Registry.Register(&registry.Service{
-<<<<<<< HEAD
-				ID:      fmt.Sprintf("mesos-consul:%s:%s:%d", agent, tname, discoveryPort.Number),
-=======
 				ID:      fmt.Sprintf("%s:%s:%s:%s:%d", m.ServiceIdPrefix, agent, tname, address, discoveryPort.Number),
->>>>>>> master
 				Name:    tname,
 				Port:    toPort(servicePort),
 				Address: address,
@@ -173,11 +169,7 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 	if t.Resources.PortRanges != "" {
 		for _, port := range t.Resources.Ports() {
 			m.Registry.Register(&registry.Service{
-<<<<<<< HEAD
-				ID:      fmt.Sprintf("mesos-consul:%s:%s:%s", agent, tname, port),
-=======
 				ID:      fmt.Sprintf("%s:%s:%s:%s:%s", m.ServiceIdPrefix, agent, tname, address, port),
->>>>>>> master
 				Name:    tname,
 				Port:    toPort(port),
 				Address: address,
@@ -189,17 +181,11 @@ func (m *Mesos) registerTask(t *state.Task, agent string) {
 				Agent: toIP(agent),
 			})
 		}
-<<<<<<< HEAD
-	} else {
-		m.Registry.Register(&registry.Service{
-			ID:      fmt.Sprintf("mesos-consul:%s-%s", agent, tname),
-=======
 	}
 
 	if !registered {
 		m.Registry.Register(&registry.Service{
 			ID:      fmt.Sprintf("%s:%s-%s:%s", m.ServiceIdPrefix, agent, tname, address),
->>>>>>> master
 			Name:    tname,
 			Address: address,
 			Tags:    tags,
