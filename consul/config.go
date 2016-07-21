@@ -17,6 +17,7 @@ type consulConfig struct {
 	sslCert                string
 	sslCaCert              string
 	token                  string
+	timeout                int
 	heartbeatsBeforeRemove int
 }
 
@@ -32,6 +33,7 @@ func AddCmdFlags(f *flag.FlagSet) {
 	f.StringVar(&config.sslCert, "consul-ssl-cert", "", "")
 	f.StringVar(&config.sslCaCert, "consul-ssl-cacert", "", "")
 	f.StringVar(&config.token, "consul-token", "", "")
+	f.IntVar(&config.timeout, "consul-timeout", 0, "")
 	f.IntVar(&config.heartbeatsBeforeRemove, "heartbeats-before-remove", 1, "")
 }
 
@@ -59,6 +61,8 @@ Consul Options:
 				(default: not set)
   --consul-token		The Consul ACL token
 				(default: not set)
+  --consul-timeout		Set a timeout (in seconds) on requests to Consul
+				(default: 0)
   --heartbeats-before-remove	Number of times that registration needs to fail
 				before removing task from Consul
 				(default: 1)

@@ -15,8 +15,9 @@ type Config struct {
 	WhiteList       []string
 
 	// Mesos service name and tags
-	ServiceName	string
-	ServiceTags	string
+	ServiceName     string
+	ServiceTags     string
+	ServiceIdPrefix string
 }
 
 func DefaultConfig() *Config {
@@ -30,5 +31,6 @@ func DefaultConfig() *Config {
 		WhiteList:       []string{},
 		ServiceName:     "mesos",
 		ServiceTags:     "",
+		ServiceIdPrefix: "mesos-consul",
 	}
 }
